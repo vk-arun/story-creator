@@ -1,0 +1,25 @@
+{
+  "name": "story-creator-app",
+  "version": "1.0.0",
+  "description": "Public story book with line-synchronized background music and admin writing pad",
+  "scripts": {
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "build:client": "npm run build --prefix client",
+    "build": "npm run build --prefix client",
+    "install:all": "npm install --prefix server && npm install --prefix client",
+    "start": "npm run start --prefix server"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.9.5",
+    "multer": "^2.4.0"
+  },
+  "keywords": ["story-book", "react", "express", "mongodb", "audio-sync", "vercel"],
+  "author": "",
+  "license": "MIT"
+}

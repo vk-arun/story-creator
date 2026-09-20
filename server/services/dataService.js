@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const Story = require('../models/Story');
 const User = require('../models/User');
-const { getIsConnected } = require('../config/db');
+const { connectDB, getIsConnected } = require('../config/db');
 const { initialSeedStories } = require('../utils/seedData');
 
 // Fallback in-memory state
@@ -42,8 +42,17 @@ const parseLines = (content) => {
 };
 
 const dataService = {
+  // Helper to guarantee connection on serverless calls
+  async ensureConnection() {
+    if (process.env.MONGODB_URI && !getIsConnected()) {
+      await connectDB();
+    }
+  },
+
   // 1. Get stories with optional filters
   async getStories({ status, genre, search, isAdmin = false }) {
+    await this.ensureConnection().catch(err => console.warn('getStories DB connect warning:', err.message));
+
     if (getIsConnected()) {
       const query = {};
       if (!isAdmin) {
@@ -85,6 +94,8 @@ const dataService = {
 
   // 2. Get single story by slug or ID
   async getStory(idOrSlug, isAdmin = false) {
+    await this.ensureConnection().catch(err => console.warn('getStory DB connect warning:', err.message));
+
     if (getIsConnected()) {
       const isMongoId = /^[0-9a-fA-F]{24}$/.test(idOrSlug);
       const query = isMongoId 
@@ -106,6 +117,10 @@ const dataService = {
 
   // 3. Create a story
   async createStory(storyData) {
+    if (process.env.MONGODB_URI) {
+      await this.ensureConnection();
+    }
+
     const lines = parseLines(storyData.content || '');
     const readTimeMinutes = calculateReadTime(storyData.content || '');
     const slug = generateSlug(storyData.title);
@@ -130,7 +145,11 @@ const dataService = {
       return created;
     }
 
-    // In-memory
+    if (process.env.MONGODB_URI) {
+      throw new Error('Database is not connected. Story could not be saved to MongoDB Atlas.');
+    }
+
+    // In-memory fallback (only when MONGODB_URI is intentionally not provided)
     const id = 'story-' + Date.now().toString(36);
     const created = {
       _id: id,
@@ -145,6 +164,10 @@ const dataService = {
 
   // 4. Update story
   async updateStory(id, updateData) {
+    if (process.env.MONGODB_URI) {
+      await this.ensureConnection();
+    }
+
     if (updateData.content) {
       updateData.lines = parseLines(updateData.content);
       updateData.readTimeMinutes = calculateReadTime(updateData.content);
@@ -153,6 +176,10 @@ const dataService = {
     if (getIsConnected()) {
       const updated = await Story.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
       return updated;
+    }
+
+    if (process.env.MONGODB_URI) {
+      throw new Error('Database is not connected. Story could not be updated in MongoDB Atlas.');
     }
 
     // In-memory
@@ -169,9 +196,17 @@ const dataService = {
 
   // 5. Delete story
   async deleteStory(id) {
+    if (process.env.MONGODB_URI) {
+      await this.ensureConnection();
+    }
+
     if (getIsConnected()) {
       const deleted = await Story.findByIdAndDelete(id);
       return !!deleted;
+    }
+
+    if (process.env.MONGODB_URI) {
+      throw new Error('Database is not connected. Story could not be deleted from MongoDB Atlas.');
     }
 
     // In-memory
@@ -183,6 +218,8 @@ const dataService = {
 
   // 6. Increment view count
   async incrementView(idOrSlug) {
+    await this.ensureConnection().catch(() => {});
+
     if (getIsConnected()) {
       const isMongoId = /^[0-9a-fA-F]{24}$/.test(idOrSlug);
       const query = isMongoId ? { $or: [{ _id: idOrSlug }, { slug: idOrSlug }] } : { slug: idOrSlug };
@@ -198,6 +235,8 @@ const dataService = {
 
   // 7. Admin authentication
   async authenticateAdmin(username, password) {
+    await this.ensureConnection().catch(err => console.warn('authenticateAdmin DB connect warning:', err.message));
+
     const adminUsername = (process.env.ADMIN_USERNAME || 'admin').toLowerCase();
     const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
@@ -231,3 +270,4 @@ const dataService = {
 };
 
 module.exports = dataService;
+

@@ -5,10 +5,14 @@ const path = require('path');
 const fs = require('fs');
 const { AUDIO_PRESETS } = require('../utils/presets');
 
-// Ensure upload directory exists
-const uploadDir = path.join(__dirname, '../uploads/audio');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+// Ensure upload directory exists (fallback to /tmp on Vercel serverless)
+const uploadDir = process.env.VERCEL ? '/tmp/uploads/audio' : path.join(__dirname, '../uploads/audio');
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (err) {
+  console.warn('Could not initialize upload directory:', err.message);
 }
 
 // Multer storage configuration

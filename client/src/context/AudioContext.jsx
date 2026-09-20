@@ -36,6 +36,15 @@ export const AudioProvider = ({ children }) => {
     audio.onerror = (e) => {
       console.warn('Audio playback notice (stream buffer):', e);
       setIsPlaying(false);
+      // If an audio file failed to load (e.g. 404 on uploaded track), gracefully fall back to ambient stream
+      const failedSrc = audioRef.current?.src || '';
+      if (failedSrc.includes('/uploads/') && !failedSrc.includes('freesound.org')) {
+        const fallbackUrl = 'https://cdn.freesound.org/previews/530/530415_11861866-lq.mp3';
+        if (audioRef.current && stagedTrackRef.current) {
+          audioRef.current.src = fallbackUrl;
+          audioRef.current.play().catch(() => {});
+        }
+      }
     };
 
     audioRef.current = audio;

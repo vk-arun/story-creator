@@ -1,5 +1,16 @@
 const dataService = require('../services/dataService');
 
+const isValidImageUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  return (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('data:image/') ||
+    trimmed.startsWith('/uploads/')
+  );
+};
+
 const storyController = {
   // Public: Get published stories
   async getPublicStories(req, res) {
@@ -99,7 +110,7 @@ const storyController = {
         title: title.trim(),
         content,
         summary: summary ? summary.trim() : '',
-        coverImage: coverImage ? coverImage.trim() : undefined,
+        coverImage: (coverImage && isValidImageUrl(coverImage)) ? coverImage.trim() : undefined,
         author: author ? author.trim() : req.user?.username || 'Admin',
         genre: genre || 'Fantasy',
         status: status === 'published' ? 'published' : 'draft',
@@ -132,7 +143,9 @@ const storyController = {
       if (title !== undefined) updatePayload.title = title.trim();
       if (content !== undefined) updatePayload.content = content;
       if (summary !== undefined) updatePayload.summary = summary.trim();
-      if (coverImage !== undefined) updatePayload.coverImage = coverImage.trim();
+      if (coverImage !== undefined) {
+        updatePayload.coverImage = isValidImageUrl(coverImage) ? coverImage.trim() : 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80';
+      }
       if (author !== undefined) updatePayload.author = author.trim();
       if (genre !== undefined) updatePayload.genre = genre;
       if (status !== undefined) updatePayload.status = status;

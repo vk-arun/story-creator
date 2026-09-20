@@ -1,22 +1,48 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BookOpen, Clock, Music, ArrowRight, Eye } from 'lucide-react';
+
+const FALLBACK_COVER = 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80';
+
+const isValidImageUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  return (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('data:image/') ||
+    trimmed.startsWith('/uploads/')
+  );
+};
 
 export const StoryCard = ({ story, onSelect }) => {
   const musicCount = story.musicSegments ? story.musicSegments.length : 0;
 
+  const [imgSrc, setImgSrc] = useState(() => 
+    isValidImageUrl(story?.coverImage) ? story.coverImage.trim() : FALLBACK_COVER
+  );
+
+  useEffect(() => {
+    setImgSrc(isValidImageUrl(story?.coverImage) ? story.coverImage.trim() : FALLBACK_COVER);
+  }, [story?.coverImage]);
+
   return (
     <div className="story-card" onClick={() => onSelect(story)}>
-      <div style={{ position: 'relative', overflow: 'hidden' }}>
+      <div className="story-card-cover-wrapper">
         <img 
-          src={story.coverImage || 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80'} 
+          src={imgSrc} 
           alt={story.title}
           className="story-card-cover"
           loading="lazy"
+          onError={() => {
+            if (imgSrc !== FALLBACK_COVER) {
+              setImgSrc(FALLBACK_COVER);
+            }
+          }}
         />
         <div className="story-card-overlay" />
         
         {/* Genre tag */}
-        <div style={{ position: 'absolute', top: '12px', left: '12px', display: 'flex', gap: '6px' }}>
+        <div style={{ position: 'absolute', top: '12px', left: '12px', display: 'flex', gap: '6px', zIndex: 2 }}>
           <span className="badge badge-gold">
             {story.genre || 'Tale'}
           </span>

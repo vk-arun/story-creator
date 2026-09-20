@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Sparkles, Music, BookOpen, Volume2, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Search, Sparkles, Music, BookOpen, Volume2, ArrowRight, RefreshCw } from 'lucide-react';
 import { StoryCard } from '../components/StoryCard';
 import { api } from '../services/api';
 
@@ -11,27 +11,57 @@ export const Home = ({ onSelectStory, onNavigate }) => {
   const [error, setError] = useState(null);
   const [selectedGenre, setSelectedGenre] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const retryTimeoutRef = useRef(null);
 
-  useEffect(() => {
-    const fetchStories = async () => {
-      setLoading(true);
-      try {
-        const data = await api.getPublicStories({
-          genre: selectedGenre,
-          search: searchQuery
-        });
-        setStories(data);
-        setError(null);
-      } catch (err) {
+  const fetchStories = useCallback(async (isManualRetry = false, retryAttempt = 0) => {
+    setLoading(true);
+    if (isManualRetry) setError(null);
+
+    try {
+      const data = await api.getPublicStories({
+        genre: selectedGenre,
+        search: searchQuery.trim()
+      });
+      const list = Array.isArray(data) ? data : [];
+      setStories(list);
+      setError(null);
+      setLoading(false);
+
+      // If empty on initial unfiltered load, the server might still be connecting to Atlas.
+      // Automatically retry in background up to 2 times without requiring the user to refresh!
+      if (list.length === 0 && !searchQuery.trim() && selectedGenre === 'All' && retryAttempt < 2) {
+        retryTimeoutRef.current = setTimeout(() => {
+          fetchStories(false, retryAttempt + 1);
+        }, 1200);
+      }
+    } catch (err) {
+      if (retryAttempt < 2 && !searchQuery.trim() && selectedGenre === 'All') {
+        retryTimeoutRef.current = setTimeout(() => {
+          fetchStories(false, retryAttempt + 1);
+        }, 1200);
+      } else {
         setError(err.message || 'Failed to load stories');
-      } finally {
         setLoading(false);
       }
-    };
-
-    const timer = setTimeout(fetchStories, 250);
-    return () => clearTimeout(timer);
+    }
   }, [selectedGenre, searchQuery]);
+
+  useEffect(() => {
+    // If user is actively typing a search query, debounce by 250ms
+    // Otherwise on initial mount or genre pill click, fetch immediately!
+    if (searchQuery.trim()) {
+      const timer = setTimeout(() => fetchStories(false, 0), 250);
+      return () => {
+        clearTimeout(timer);
+        if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+      };
+    } else {
+      fetchStories(false, 0);
+      return () => {
+        if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+      };
+    }
+  }, [selectedGenre, searchQuery, fetchStories]);
 
   return (
     <div className="container" style={{ paddingBottom: '80px' }}>
@@ -124,19 +154,34 @@ export const Home = ({ onSelectStory, onNavigate }) => {
         </div>
       ) : error ? (
         <div className="glass-panel" style={{ textAlign: 'center', padding: '40px', maxWidth: '500px', margin: '40px auto' }}>
-          <p style={{ color: 'var(--accent-danger)', marginBottom: '14px' }}>{error}</p>
-          <button className="outline-btn" onClick={() => window.location.reload()}>Retry</button>
+          <p style={{ color: 'var(--accent-danger)', marginBottom: '16px' }}>{error}</p>
+          <button 
+            className="glow-btn" 
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            onClick={() => fetchStories(true, 0)}
+          >
+            <RefreshCw size={14} /> Retry Loading
+          </button>
         </div>
       ) : stories.length === 0 ? (
         <div className="glass-panel" style={{ textAlign: 'center', padding: '60px 20px', maxWidth: '560px', margin: '40px auto' }}>
           <BookOpen size={42} color="var(--accent-gold)" style={{ opacity: 0.7, marginBottom: '16px' }} />
-          <h3 style={{ fontSize: '1.4rem', marginBottom: '10px' }}>No stories found in this section</h3>
+          <h3 style={{ fontSize: '1.4rem', marginBottom: '10px' }}>No stories found</h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '24px' }}>
-            {searchQuery ? `No matches for "${searchQuery}". Try a different keyword.` : 'Stories are currently being written. Check back shortly or log in as admin to publish one.'}
+            {searchQuery ? `No matches for "${searchQuery}". Try a different keyword.` : 'Stories are published via the Admin Studio. Click below to refresh or check your published tales.'}
           </p>
-          <button className="glow-btn" onClick={() => { setSearchQuery(''); setSelectedGenre('All'); }}>
-            View All Stories
-          </button>
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button 
+              className="glow-btn" 
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              onClick={() => { setSearchQuery(''); setSelectedGenre('All'); fetchStories(true, 0); }}
+            >
+              <RefreshCw size={14} /> Refresh Stories
+            </button>
+            <button className="outline-btn" onClick={() => onNavigate('login')}>
+              Admin Portal
+            </button>
+          </div>
         </div>
       ) : (
         <div className="stories-grid">

@@ -297,12 +297,20 @@ export const StoryEditor = ({ initialStory, onSaveSuccess, onPreviewStory, onCan
 
     const cleanedSegments = getCleanedSegments();
 
+    const isValidUrl = (url) => {
+      if (!url || typeof url !== 'string') return false;
+      const t = url.trim();
+      return t.startsWith('http://') || t.startsWith('https://') || t.startsWith('data:image/') || t.startsWith('/uploads/');
+    };
+
+    const safeCoverImage = isValidUrl(coverImage) ? coverImage.trim() : PRESET_COVERS[0].url;
+
     const payload = {
       title: title.trim(),
       content,
       summary: summary.trim(),
       genre,
-      coverImage: coverImage.trim(),
+      coverImage: safeCoverImage,
       author: author.trim() || user?.username || 'Admin',
       status: statusToSet,
       musicSegments: cleanedSegments
@@ -479,14 +487,45 @@ export const StoryEditor = ({ initialStory, onSaveSuccess, onPreviewStory, onCan
 
             {/* Cover Image URL */}
             <div className="form-group">
-              <label className="form-label">Cover Image URL</label>
-              <input 
-                type="url"
-                className="form-input"
-                placeholder="https://images.unsplash.com/..."
-                value={coverImage}
-                onChange={(e) => setCoverImage(e.target.value)}
-              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label className="form-label" style={{ marginBottom: 0 }}>Cover Image URL</label>
+                {coverImage && !coverImage.startsWith('http') && !coverImage.startsWith('/uploads') && (
+                  <span style={{ color: 'var(--accent-gold)', fontSize: '0.75rem' }}>
+                    Tip: Enter a full https:// image URL or pick a preset above
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <input 
+                  type="url"
+                  className="form-input"
+                  placeholder="https://images.unsplash.com/..."
+                  value={coverImage}
+                  onChange={(e) => setCoverImage(e.target.value)}
+                  style={{ flex: 1 }}
+                />
+                <div 
+                  style={{ 
+                    width: '60px', 
+                    height: '42px', 
+                    borderRadius: 'var(--radius-sm)', 
+                    overflow: 'hidden', 
+                    flexShrink: 0,
+                    border: '1px solid var(--border-glass)',
+                    background: 'var(--bg-surface-elevated)'
+                  }}
+                  title="Cover preview"
+                >
+                  <img 
+                    src={coverImage || PRESET_COVERS[0].url} 
+                    alt="Cover preview" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    onError={(e) => {
+                      e.currentTarget.src = PRESET_COVERS[0].url;
+                    }}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Synopsis / Excerpt */}

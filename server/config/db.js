@@ -26,15 +26,17 @@ const connectDB = async () => {
 
   if (!cached.promise) {
     const opts = {
-      bufferCommands: false,
-      serverSelectionTimeoutMS: 8000,
+      bufferCommands: true,
+      serverSelectionTimeoutMS: 10000,
     };
 
     cached.promise = mongoose.connect(uri, opts).then((m) => {
       console.log(`✅ MongoDB Connected: ${m.connection.host}`);
+      cached.conn = m;
       return m;
     }).catch((err) => {
       cached.promise = null;
+      cached.conn = null;
       console.error(`❌ MongoDB Connection error: ${err.message}`);
       throw err;
     });
@@ -45,6 +47,7 @@ const connectDB = async () => {
     return cached.conn;
   } catch (err) {
     cached.promise = null;
+    cached.conn = null;
     throw err;
   }
 };

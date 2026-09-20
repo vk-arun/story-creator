@@ -24,6 +24,12 @@ export const AudioProvider = ({ children }) => {
     const audio = new Audio();
     audio.loop = true;
     audio.preload = 'auto';
+    audio.playsInline = true;
+    try {
+      audio.setAttribute('playsinline', 'true');
+      audio.setAttribute('webkit-playsinline', 'true');
+    } catch (e) {}
+    audio.muted = isMuted;
 
     audio.onplay = () => setIsPlaying(true);
     audio.onpause = () => setIsPlaying(false);
@@ -70,12 +76,17 @@ export const AudioProvider = ({ children }) => {
   // Sync volume with masterVolume and isMuted
   useEffect(() => {
     if (!audioRef.current) return;
+    audioRef.current.muted = isMuted;
     if (isMuted) {
-      audioRef.current.volume = 0;
+      try {
+        audioRef.current.volume = 0;
+      } catch (e) {}
       audioRef.current.pause();
     } else {
       const targetVol = activeTrack ? (activeTrack.volume ?? 0.7) * masterVolume : masterVolume;
-      audioRef.current.volume = Math.max(0, Math.min(1, targetVol));
+      try {
+        audioRef.current.volume = Math.max(0, Math.min(1, targetVol));
+      } catch (e) {}
       if (audioUnlocked && activeTrack && audioRef.current.paused && audioRef.current.src) {
         audioRef.current.play().catch(() => {});
       }
@@ -250,12 +261,17 @@ export const AudioProvider = ({ children }) => {
     setIsMuted(prev => {
       const next = !prev;
       localStorage.setItem('reader_sound_muted', next.toString());
+      if (audioRef.current) {
+        audioRef.current.muted = next;
+      }
       if (next) {
         if (audioRef.current) audioRef.current.pause();
       } else {
         setAudioUnlocked(true);
         if (audioRef.current && stagedTrackRef.current) {
-          audioRef.current.volume = (stagedTrackRef.current.volume ?? 0.7) * masterVolume;
+          try {
+            audioRef.current.volume = (stagedTrackRef.current.volume ?? 0.7) * masterVolume;
+          } catch (e) {}
           audioRef.current.play().catch(() => {});
         }
       }

@@ -4,6 +4,17 @@ const User = require('../models/User');
 const { connectDB, getIsConnected } = require('../config/db');
 const { initialSeedStories } = require('../utils/seedData');
 
+const isValidImageUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  return (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('data:image/') ||
+    trimmed.startsWith('/uploads/')
+  );
+};
+
 // Fallback in-memory state
 let memoryStories = [...initialSeedStories];
 let memoryAdminUser = null;
@@ -44,16 +55,24 @@ const parseLines = (content) => {
 const dataService = {
   // Helper to guarantee connection on serverless calls
   async ensureConnection() {
-    if (process.env.MONGODB_URI && !getIsConnected()) {
-      await connectDB();
+    if (process.env.MONGODB_URI) {
+      if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+        await connectDB();
+      }
     }
   },
 
   // 1. Get stories with optional filters
   async getStories({ status, genre, search, isAdmin = false }) {
-    await this.ensureConnection().catch(err => console.warn('getStories DB connect warning:', err.message));
+    if (process.env.MONGODB_URI) {
+      try {
+        await this.ensureConnection();
+      } catch (err) {
+        console.warn('getStories DB connect warning:', err.message);
+      }
+    }
 
-    if (getIsConnected()) {
+    if (getIsConnected() || process.env.MONGODB_URI) {
       const query = {};
       if (!isAdmin) {
         query.status = 'published';
@@ -63,10 +82,11 @@ const dataService = {
       if (genre && genre !== 'All') {
         query.genre = genre;
       }
-      if (search) {
+      if (search && search.trim()) {
+        const s = search.trim();
         query.$or = [
-          { title: { $regex: search, $options: 'i' } },
-          { summary: { $regex: search, $options: 'i' } }
+          { title: { $regex: s, $options: 'i' } },
+          { summary: { $regex: s, $options: 'i' } }
         ];
       }
       return await Story.find(query).sort({ createdAt: -1 });
@@ -94,9 +114,15 @@ const dataService = {
 
   // 2. Get single story by slug or ID
   async getStory(idOrSlug, isAdmin = false) {
-    await this.ensureConnection().catch(err => console.warn('getStory DB connect warning:', err.message));
+    if (process.env.MONGODB_URI) {
+      try {
+        await this.ensureConnection();
+      } catch (err) {
+        console.warn('getStory DB connect warning:', err.message);
+      }
+    }
 
-    if (getIsConnected()) {
+    if (getIsConnected() || process.env.MONGODB_URI) {
       const isMongoId = /^[0-9a-fA-F]{24}$/.test(idOrSlug);
       const query = isMongoId 
         ? { $or: [{ _id: idOrSlug }, { slug: idOrSlug }] } 
@@ -129,7 +155,9 @@ const dataService = {
       title: storyData.title,
       slug,
       summary: storyData.summary || '',
-      coverImage: storyData.coverImage || 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80',
+      coverImage: (storyData.coverImage && isValidImageUrl(storyData.coverImage))
+        ? storyData.coverImage.trim()
+        : 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80',
       author: storyData.author || 'Admin',
       genre: storyData.genre || 'Fantasy',
       content: storyData.content,
@@ -171,6 +199,12 @@ const dataService = {
     if (updateData.content) {
       updateData.lines = parseLines(updateData.content);
       updateData.readTimeMinutes = calculateReadTime(updateData.content);
+    }
+
+    if (updateData.coverImage !== undefined) {
+      updateData.coverImage = isValidImageUrl(updateData.coverImage)
+        ? updateData.coverImage.trim()
+        : 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80';
     }
 
     if (getIsConnected()) {
